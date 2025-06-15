@@ -36,18 +36,24 @@ function debounce(func, wait) {
 }
 
 // 消息提示系统
+let lastMessage;
 function showMessage(text, type = 'info', duration = 3000) {
+  if (lastMessage) {
+    lastMessage.remove();
+    lastMessage = null;
+  }
   const message = document.createElement('div');
   message.className = `message ${type}`;
   message.textContent = text;
   document.body.appendChild(message);
-  
+  lastMessage = message;
   setTimeout(() => {
     message.style.animation = 'slideOut 0.3s ease-in forwards';
     setTimeout(() => {
       if (message.parentNode) {
         message.parentNode.removeChild(message);
       }
+      if (lastMessage === message) lastMessage = null;
     }, 300);
   }, duration);
 }
@@ -646,7 +652,10 @@ function renderStudyProgress() {
   let progressElement = document.querySelector('.study-progress');
   if (!progressElement) {
     const container = document.querySelector('.controls');
-    container.insertAdjacentHTML('afterend', progressHtml);
+    if (container) {
+      container.insertAdjacentHTML('afterend', progressHtml);
+    }
+    // 如果没有.controls容器，直接跳过，不报错
   } else {
     progressElement.outerHTML = progressHtml;
   }
@@ -813,31 +822,36 @@ function toggleWordStatus(key, btn, card) {
   wordStatus[key] = next;
   setWordStatus(wordStatus);
   
-  // 局部渲染：只更新当前按钮和圆点的 class
+  // 只更新按钮的状态class
   statusOrder.forEach(status => {
     btn.classList.remove(statusClass[status]);
+    card.classList.remove(statusClass[status]);
   });
   btn.classList.add(statusClass[next]);
-  
-  // 更新右上角圆点
-  const dot = card.querySelector('.status-label');
-  statusOrder.forEach(status => {
-    dot.classList.remove(statusClass[status]);
-  });
-  dot.classList.add(statusClass[next]);
-  
+  card.classList.add(statusClass[next]);
   // 更新学习进度
   renderStudyProgress();
 }
 
 // 事件委托处理点击
 function handleCardClick(e) {
-  const card = e.target.closest('.character-card');
-  if (!card) return;
-  
-  const btn = card.querySelector('.word-btn');
-  const key = btn.getAttribute('data-key');
-  toggleWordStatus(key, btn, card);
+  // 允许点击按钮或圆点
+  const btn = e.target.closest('.word-btn');
+  const dot = e.target.closest('.status-label');
+  let card, key, realBtn;
+  if (btn) {
+    card = btn.closest('.character-card');
+    key = btn.getAttribute('data-key');
+    realBtn = btn;
+  } else if (dot) {
+    card = dot.closest('.character-card');
+    realBtn = card ? card.querySelector('.word-btn') : null;
+    key = realBtn ? realBtn.getAttribute('data-key') : null;
+  } else {
+    return;
+  }
+  if (!card || !key || !realBtn) return;
+  toggleWordStatus(key, realBtn, card);
 }
 
 // 生成课程HTML
@@ -884,7 +898,7 @@ function generateLessonHTML(lesson, lessonIdx, filteredWords, isPrint) {
     <div class="lesson-block">
       <div class="lesson-title">${lesson.title}</div>
       <div class="lesson-words">
-        ${filteredWords.map((item, wordIdx) => {
+        ${filteredWords.map((item) => {
           const origIdx = lesson.words.findIndex(w => w.word === item.word && w.pinyin === item.pinyin);
           const key = `${lessonIdx}_${origIdx}`;
           const status = wordStatus[key] || 'unknown';
@@ -892,18 +906,16 @@ function generateLessonHTML(lesson, lessonIdx, filteredWords, isPrint) {
             const highlightedPinyin = highlightSearchResults(item.pinyin, currentSearchQuery);
             return `
               <div class="character-card ${statusClass[status]}">
-                <span class='status-label ${statusClass[status]}'></span>
+                <span class='status-label'></span>
                 <button class="word-btn ${statusClass[status]}" data-key="${key}">${highlightedPinyin}</button>
               </div>
             `;
           }
-          
           const highlightedWord = highlightSearchResults(item.word, currentSearchQuery);
           const highlightedPinyin = highlightSearchResults(item.pinyin, currentSearchQuery);
-          
           return `
             <div class="character-card ${statusClass[status]}">
-              <span class='status-label ${statusClass[status]}'></span>
+              <span class='status-label'></span>
               <div class="pinyin">${highlightedPinyin}</div>
               <button class="word-btn ${statusClass[status]}" data-key="${key}">${highlightedWord}</button>
             </div>
@@ -916,6 +928,12 @@ function generateLessonHTML(lesson, lessonIdx, filteredWords, isPrint) {
 
 // 优化后的渲染函数
 function renderLessons() {
+  // 如果正在进行自定义打印，不要重新渲染
+  if (isCustomPrinting) {
+    console.log('自定义打印中，跳过重新渲染');
+    return;
+  }
+  
   const wordStatus = getWordStatus();
   const filter = document.getElementById('filterStatus')?.value || 'all';
   const isPrint = window.matchMedia && window.matchMedia('print').matches;
@@ -1001,20 +1019,14 @@ function initializeSearch() {
   const clearSearchBtn = document.getElementById('clearSearchBtn');
   
   if (searchInput) {
-    // 防抖搜索
-    const debouncedSearch = debounce(performSearch, 300);
-    
     searchInput.addEventListener('input', (e) => {
       const query = e.target.value.trim();
       currentSearchQuery = query;
-      
       // 显示/隐藏清除按钮
       clearSearchBtn.style.display = query ? 'flex' : 'none';
-      
-      // 执行搜索
-      debouncedSearch(query);
+      // 直接执行搜索
+      performSearch(query);
     });
-    
     // 回车键搜索
     searchInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -1211,6 +1223,7 @@ window.addEventListener('error', function(e) {
 });
 
 // 显示使用说明
+// 简单的帮助功能
 function showHelp() {
   const helpContent = `
     <div style="text-align: left; line-height: 1.6;">
@@ -1287,9 +1300,17 @@ function showHelp() {
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
+  // 确保清除任何残留的打印状态
+  isCustomPrinting = false;
+  
   renderLessons();
   renderStudyProgress();
   initializeSearch();
+  initializeSpeech();
+  initializeMobileNav();
+  
+  // 添加发音按钮
+  addSpeechButtons();
   
   // 添加快捷键提示
   const helpText = document.createElement('div');
@@ -1325,10 +1346,26 @@ document.addEventListener('DOMContentLoaded', function() {
       localStorage.setItem('hasVisited', 'true');
     }, 1000);
   }
+  
+  // 监听页面可见性变化，确保打印状态正常
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && isCustomPrinting) {
+      console.log('页面重新可见，检查并清理打印状态');
+      setTimeout(() => {
+        if (isCustomPrinting) {
+          console.log('清理残留的打印状态');
+          isCustomPrinting = false;
+          renderLessons();
+          addSpeechButtons();
+        }
+      }, 1000);
+    }
+  });
 });
 
 function printPage() {
   showPrintModeDialog();
+  updateNavActiveState('print');
 }
 
 // 显示打印模式选择对话框
@@ -1449,7 +1486,25 @@ function showPrintModeDialog() {
 
 // 打印当前屏幕显示的所有生字
 function printCurrentScreen() {
+  console.log('开始打印当前屏幕内容');
+  
+  // 确保不是自定义打印状态
+  isCustomPrinting = false;
+  
+  // 添加打印监听器以便用户反馈
+  const afterPrint = () => {
+    console.log('屏幕打印完成');
+    window.removeEventListener('afterprint', afterPrint);
+    showMessage('打印完成', 'success');
+  };
+  
+  window.addEventListener('afterprint', afterPrint);
   window.print();
+  
+  // 清理监听器的备用机制
+  setTimeout(() => {
+    window.removeEventListener('afterprint', afterPrint);
+  }, 10000);
 }
 
 // 显示自定义生字本对话框
@@ -1755,36 +1810,77 @@ function generatePrintContent(lessonGroups, totalCount) {
   // 更新显示内容
   container.innerHTML = printHTML;
   
+  // 改进的打印和恢复逻辑
+  const restoreContent = () => {
+    console.log('恢复页面内容');
+    isCustomPrinting = false;
+    container.innerHTML = originalContent;
+    
+    // 重新渲染页面
+    renderLessons();
+    addSpeechButtons();
+    
+    // 重新绑定事件
+    container.removeEventListener('click', handleCardClick);
+    container.addEventListener('click', handleCardClick);
+    
+    showMessage('页面已恢复正常显示', 'success');
+  };
+  
   // 确保DOM更新完成后再打印
   requestAnimationFrame(() => {
     setTimeout(() => {
       console.log('开始打印...');
-      window.print();
       
-      // 监听打印完成事件，恢复原内容
-      const afterPrint = () => {
-        console.log('打印完成，恢复原内容');
-        // 清除自定义打印标志
-        isCustomPrinting = false;
-        console.log('清除自定义打印标志位');
-        
-        container.innerHTML = originalContent;
-        // 重新绑定事件
-        container.removeEventListener('click', handleCardClick);
-        container.addEventListener('click', handleCardClick);
-        window.removeEventListener('afterprint', afterPrint);
-        showMessage('打印完成，已恢复页面显示', 'success');
+      // 多重恢复机制
+      let hasRestored = false;
+      
+      const safeRestore = () => {
+        if (!hasRestored) {
+          hasRestored = true;
+          restoreContent();
+        }
       };
       
+      // 监听打印完成事件
+      const afterPrint = () => {
+        console.log('检测到打印完成事件');
+        window.removeEventListener('afterprint', afterPrint);
+        safeRestore();
+      };
+      
+      // 监听beforeprint事件（打印开始）
+      const beforePrint = () => {
+        console.log('检测到打印开始事件');
+      };
+      
+      window.addEventListener('beforeprint', beforePrint);
       window.addEventListener('afterprint', afterPrint);
       
-      // 备用恢复机制，防止打印对话框被取消时内容无法恢复
+      // 启动打印
+      window.print();
+      
+      // 备用恢复机制1：较短时间检查
       setTimeout(() => {
-        if (isCustomPrinting && container.innerHTML === printHTML) {
-          console.log('备用恢复机制触发');
-          afterPrint();
+        if (isCustomPrinting) {
+          console.log('备用恢复机制1触发（3秒）');
+          safeRestore();
         }
-      }, 5000);
+      }, 3000);
+      
+      // 备用恢复机制2：较长时间检查
+      setTimeout(() => {
+        if (isCustomPrinting) {
+          console.log('备用恢复机制2触发（8秒）');
+          safeRestore();
+        }
+      }, 8000);
+      
+      // 清理beforeprint监听器
+      setTimeout(() => {
+        window.removeEventListener('beforeprint', beforePrint);
+      }, 10000);
+      
     }, 200);
   });
 }
@@ -1793,6 +1889,9 @@ function generatePrintContent(lessonGroups, totalCount) {
 function showAnalysisReport() {
   const stats = getStudyStats();
   const masteryRate = Math.round((stats.known / stats.total) * 100);
+  
+  // 更新导航状态
+  updateNavActiveState('analysis');
   
   const modal = document.createElement('div');
   modal.style.cssText = `
@@ -1914,4 +2013,105 @@ function generateQuickRecommendations(stats, masteryRate) {
   }
   
   return recommendations.join('');
-} 
+}
+
+// 移动端导航功能
+
+function focusSearch() {
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) {
+    // 滚动到顶部，确保搜索框可见
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // 延迟聚焦，确保滚动完成
+    setTimeout(() => {
+      searchInput.focus();
+      searchInput.select();
+    }, 300);
+  }
+  
+  // 更新导航栏状态
+  updateNavActiveState('search');
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  updateNavActiveState('learn');
+}
+
+function updateNavActiveState(activeTab) {
+  // 移除所有活跃状态
+  const navItems = document.querySelectorAll('.mobile-nav-item');
+  navItems.forEach(item => {
+    item.classList.remove('active');
+  });
+  
+  // 添加当前活跃状态
+  const activeMap = {
+    'learn': 0,
+    'search': 1,
+    'print': 2,
+    'analysis': 3
+  };
+  
+  const activeIndex = activeMap[activeTab];
+  if (activeIndex !== undefined && navItems[activeIndex]) {
+    navItems[activeIndex].classList.add('active');
+  }
+}
+
+// 监听滚动，自动更新导航状态
+let scrollTimeout;
+function handleScroll() {
+  clearTimeout(scrollTimeout);
+  scrollTimeout = setTimeout(() => {
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    
+    // 如果在顶部，激活学习tab
+    if (scrollTop < 100) {
+      updateNavActiveState('learn');
+    }
+  }, 100);
+}
+
+// 页面初始化时绑定事件
+function initializeMobileNav() {
+  // 只在移动端绑定滚动事件
+  if (window.innerWidth <= 768) {
+    window.addEventListener('scroll', handleScroll, { passive: true });
+  }
+  
+  // 监听窗口大小变化
+  window.addEventListener('resize', () => {
+    if (window.innerWidth <= 768) {
+      window.addEventListener('scroll', handleScroll, { passive: true });
+    } else {
+      window.removeEventListener('scroll', handleScroll);
+    }
+  });
+}
+
+// 处理下拉菜单点击外部关闭
+document.addEventListener('click', function(event) {
+    const moreMenu = document.querySelector('.more-menu');
+    const dropdownMenu = document.querySelector('.dropdown-menu');
+    const moreBtn = document.querySelector('.more-btn');
+    
+    if (!moreMenu.contains(event.target)) {
+        dropdownMenu.style.display = 'none';
+    }
+});
+
+// 处理更多按钮点击
+document.querySelector('.more-btn').addEventListener('click', function(event) {
+    event.stopPropagation();
+    const dropdownMenu = document.querySelector('.dropdown-menu');
+    dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+});
+
+// 处理下拉菜单项点击
+document.querySelectorAll('.dropdown-item').forEach(item => {
+    item.addEventListener('click', function() {
+        document.querySelector('.dropdown-menu').style.display = 'none';
+    });
+}); 
