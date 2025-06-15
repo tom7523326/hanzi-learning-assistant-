@@ -835,23 +835,28 @@ function toggleWordStatus(key, btn, card) {
 
 // 事件委托处理点击
 function handleCardClick(e) {
-  // 允许点击按钮或圆点
+  // 允许点击按钮、圆点或卡片本身
   const btn = e.target.closest('.word-btn');
   const dot = e.target.closest('.status-label');
-  let card, key, realBtn;
+  const card = e.target.closest('.character-card');
+  let key, realBtn, realCard;
   if (btn) {
-    card = btn.closest('.character-card');
+    realCard = btn.closest('.character-card');
     key = btn.getAttribute('data-key');
     realBtn = btn;
   } else if (dot) {
-    card = dot.closest('.character-card');
-    realBtn = card ? card.querySelector('.word-btn') : null;
+    realCard = dot.closest('.character-card');
+    realBtn = realCard ? realCard.querySelector('.word-btn') : null;
     key = realBtn ? realBtn.getAttribute('data-key') : null;
+  } else if (card) {
+    realBtn = card.querySelector('.word-btn');
+    key = realBtn ? realBtn.getAttribute('data-key') : null;
+    realCard = card;
   } else {
     return;
   }
-  if (!card || !key || !realBtn) return;
-  toggleWordStatus(key, realBtn, card);
+  if (!realCard || !key || !realBtn) return;
+  toggleWordStatus(key, realBtn, realCard);
 }
 
 // 生成课程HTML
@@ -905,7 +910,7 @@ function generateLessonHTML(lesson, lessonIdx, filteredWords, isPrint) {
           if (window.pinyinMode) {
             const highlightedPinyin = highlightSearchResults(item.pinyin, currentSearchQuery);
             return `
-              <div class="character-card ${statusClass[status]}">
+              <div class="character-card ${statusClass[status]} pinyin-mode">
                 <span class='status-label'></span>
                 <button class="word-btn ${statusClass[status]}" data-key="${key}">${highlightedPinyin}</button>
               </div>
@@ -970,6 +975,11 @@ function renderLessons() {
     
     const lessonElement = document.createElement('div');
     lessonElement.innerHTML = generateLessonHTML(lesson, lessonIdx, filteredWords, isPrint);
+    // 拼音模式下为.lesson-words加pinyin-mode类
+    const lessonWords = lessonElement.querySelector('.lesson-words');
+    if (window.pinyinMode && lessonWords) {
+      lessonWords.classList.add('pinyin-mode');
+    }
     fragment.appendChild(lessonElement.firstElementChild);
   });
   

@@ -183,10 +183,33 @@ select:focus {
 }
 
 .lesson-words {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 1rem;
-    align-items: stretch;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.character-card {
+    min-height: unset !important;
+    max-height: unset !important;
+    padding: 0.4rem 0.8rem 0.5rem 0.8rem;
+}
+
+.character-card .word-btn {
+    min-height: unset !important;
+    padding: 0.18rem 0.5rem;
+    font-size: 1.1rem;
+}
+
+.character-card .pinyin {
+    min-height: unset !important;
+    font-size: 0.95rem;
+    margin-bottom: 0.08rem;
+}
+
+.character-card .word {
+    font-size: 1.1rem;
+    margin-bottom: 0.08rem;
 }
 
 .character-card,
@@ -201,47 +224,6 @@ select:focus {
 .character-card:hover {
     background: #f3f4f6 !important;
     border-color: var(--primary-color) !important;
-}
-
-.word-btn:hover {
-    background: #e0e7ef !important;
-    border-color: var(--primary-color) !important;
-}
-
-.pinyin {
-    font-size: 0.95rem;
-    color: var(--text-secondary);
-    font-style: italic;
-    margin-bottom: 0.25rem;
-    text-align: center;
-    width: 100%;
-    white-space: normal;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    line-height: 1.3;
-    min-height: 1.2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.word-btn {
-    font-size: 1.25rem;
-    color: var(--text-primary);
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    padding: 0.5rem 1rem;
-    width: 100%;
-    cursor: pointer;
-    transition: all 0.2s;
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    text-align: center;
 }
 
 .word-btn:hover {
@@ -654,12 +636,13 @@ button.secondary:hover {
 /* 保证主文字和拼音垂直居中 */
 .character-card .word {
     display: block;
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
+    font-size: 1.3rem;
+    margin-bottom: 0.15rem;
 }
 .character-card .pinyin {
     display: block;
     font-size: 1rem;
+    margin-bottom: 0.15rem;
 }
 
 .status-legend {
@@ -1680,6 +1663,11 @@ select:focus-visible {
     cursor: pointer;
     min-height: 140px;
     max-height: 180px;
+    max-width: 360px;
+    width: max-content;
+    min-width: 120px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
 }
 
 /* 确保拼音区域有足够空间 */
@@ -1695,8 +1683,11 @@ select:focus-visible {
     display: flex;
     align-items: center;
     justify-content: center;
-    white-space: normal;
-    word-wrap: break-word;
+    white-space: nowrap;
+    word-wrap: normal;
+    margin: 0 auto;
+    width: max-content;
+    min-width: 0;
 }
 
 .character-card:hover {
@@ -2138,4 +2129,39 @@ select:focus-visible {
 .search-btn:hover {
     background-color: var(--bg-primary);
     color: var(--text-primary);
+}
+
+.character-card.pinyin-mode {
+    min-width: 150px;
+    max-width: 300px;
+    width: auto;
+    min-height: unset;
+    max-height: unset;
+    padding: 0.4rem 0.8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    margin: 0.3rem 0.15rem;
+    font-size: 1rem;
+}
+
+.character-card.pinyin-mode .word-btn {
+    font-size: 1rem;
+    min-height: unset;
+    padding: 0.3rem 0.5rem;
+    width: auto;
+    white-space: nowrap;
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+.character-card.pinyin-mode .pinyin {
+    font-size: 1rem;
+    margin-bottom: 0.2rem;
+    min-height: unset;
+    white-space: nowrap !important;
+    overflow-x: auto;
 } 
