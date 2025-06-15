@@ -653,7 +653,7 @@ function renderStudyProgress() {
   if (!progressElement) {
     const container = document.querySelector('.controls');
     if (container) {
-      container.insertAdjacentHTML('afterend', progressHtml);
+    container.insertAdjacentHTML('afterend', progressHtml);
     }
     // 如果没有.controls容器，直接跳过，不报错
   } else {
@@ -756,47 +756,70 @@ function toggleAddWordPanel() {
   }
 }
 
-// 添加生字功能（增强版）
+// 页面加载时填充单元下拉框
+function fillLessonSelect() {
+  const select = document.getElementById('newWordLesson');
+  if (!select) return;
+  select.innerHTML = '';
+  getAllLessons().forEach((lesson, idx) => {
+    const option = document.createElement('option');
+    option.value = idx;
+    option.textContent = lesson.title;
+    select.appendChild(option);
+  });
+}
+
+// 修改添加生字功能：只需输入汉字，自动生成拼音，并可指定单元
 function addNewCharacter() {
   const word = document.getElementById('newWord').value.trim();
-  const pinyin = document.getElementById('newPinyin').value.trim();
-  
-  if (!word || !pinyin) {
-    showMessage('请填写词组和拼音', 'error');
+  const lessonIdx = document.getElementById('newWordLesson').value;
+  if (!word) {
+    showMessage('请填写汉字', 'error');
     return;
   }
-  
+  if (lessonIdx === '' || lessonIdx == null) {
+    showMessage('请选择单元', 'error');
+    return;
+  }
   try {
-    // 自动修正拼音和汉字数量
-    let pinyinArr = pinyin.split(/\s+/);
-    let wordArr = word.split("");
-    if (pinyinArr.length < wordArr.length) {
-      const last = pinyinArr[pinyinArr.length - 1] || '';
-      while (pinyinArr.length < wordArr.length) {
-        pinyinArr.push(last);
-      }
-    } else if (pinyinArr.length > wordArr.length) {
-      pinyinArr = pinyinArr.slice(0, wordArr.length);
+    // 自动生成拼音
+    let pinyin = window.pinyinPro ? window.pinyinPro.pinyin(word, { toneType: 'symbol', type: 'array', nonZh: 'spaced' }).join(' ') : '';
+    if (!pinyin) {
+      showMessage('拼音生成失败', 'error');
+      return;
     }
-    const fixedPinyin = pinyinArr.join(' ');
-
-    // 保存到自定义分组
-    let customWords = getCustomWords();
-    customWords.push({ word, pinyin: fixedPinyin });
-    setCustomWords(customWords);
-
-    // 清空输入框
+    // 插入到指定单元
+    let allLessons = getAllLessons();
+    let idx = parseInt(lessonIdx);
+    if (!allLessons[idx]) {
+      showMessage('单元不存在', 'error');
+      return;
+    }
+    allLessons[idx].words.push({ word, pinyin });
+    // 如果是自定义分组，需同步到localStorage
+    if (allLessons[idx].title === '自定义') {
+      setCustomWords(allLessons[idx].words);
+    } else {
+      // 课文分组直接写入lessons数组
+      lessons[idx].words = allLessons[idx].words;
+    }
     document.getElementById('newWord').value = '';
-    document.getElementById('newPinyin').value = '';
     toggleAddWordPanel();
     renderLessons();
-    renderStudyProgress();
-    showMessage(`已添加"${word}"`, 'success');
+    renderStudyProgress && renderStudyProgress();
+    showMessage(`已添加"${word}"到${allLessons[idx].title}`, 'success');
   } catch (error) {
     console.error('添加生字失败:', error);
     showMessage('添加失败，请重试', 'error');
   }
 }
+
+// 打开添加生字面板时自动填充单元下拉框
+const oldToggleAddWordPanel = window.toggleAddWordPanel;
+window.toggleAddWordPanel = function() {
+  fillLessonSelect();
+  oldToggleAddWordPanel && oldToggleAddWordPanel();
+};
 
 // 在lessons渲染前插入自定义分组
 function getAllLessons() {
@@ -1368,8 +1391,8 @@ document.addEventListener('DOMContentLoaded', function() {
           renderLessons();
           addSpeechButtons();
         }
-      }, 1000);
-    }
+    }, 1000);
+  }
   });
 });
 

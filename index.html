@@ -107,8 +107,8 @@
 
         <div id="addWordPanel" style="display:none;" role="dialog" aria-labelledby="addWordTitle">
             <h3 id="addWordTitle" class="sr-only">添加新生字</h3>
-            <input type="text" id="newWord" placeholder="输入对应的单词" aria-label="输入词组" required>
-            <input type="text" id="newPinyin" placeholder="输入拼音" aria-label="输入拼音" required>
+            <input type="text" id="newWord" placeholder="输入汉字" aria-label="输入汉字" required>
+            <select id="newWordLesson" aria-label="选择单元" required></select>
             <div class="button-group">
                 <button onclick="addNewCharacter()" aria-label="确认添加生字">
                     <i class="ri-check-line"></i>
@@ -146,6 +146,7 @@
         </button>
     </div>
     
+    <script src="https://cdn.jsdelivr.net/npm/pinyin-pro/dist/index.js"></script>
     <script src="script.js"></script>
 </body>
 </html> 
