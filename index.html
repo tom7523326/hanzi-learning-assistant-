@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生字学习助手</title>
+    <meta name="description" content="小学二年级生字学习助手，支持拼音练习、学习进度跟踪、打印练习">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+    <div class="status-legend">
+      <span class="status-unknown status-label" aria-label="不会"></span><span class="legend-text">不会</span>
+      <span class="status-maybe status-label" aria-label="模糊"></span><span class="legend-text">模糊</span>
+      <span class="status-known status-label" aria-label="已掌握"></span><span class="legend-text">已掌握</span>
+    </div>
+    <div class="container">
+      <div class="print-header">
+        <div class="print-title">2024-2025 第二学期看拼音写词（分课版）</div>
+        <div class="print-meta">
+          班级：<span class="print-line"></span>
+          姓名：<span class="print-line"></span>
+        </div>
+        <div class="print-meta-vertical">
+          <div class="print-meta-row">
+            <span class="print-label">班级：</span><span class="print-line"></span>
+          </div>
+          <div class="print-meta-row">
+            <span class="print-label">姓名：</span><span class="print-line"></span>
+          </div>
+        </div>
+      </div>
+      
+        <h1>
+            <i class="ri-book-2-line" aria-hidden="true"></i>
+            生字学习助手
+        </h1>
+        
+        <div class="controls">
+            <button id="showAddWordBtn" onclick="toggleAddWordPanel()" class="tooltip" data-tooltip="添加自定义生字 (Ctrl+A)" aria-label="添加生字">
+                <i class="ri-add-line" aria-hidden="true"></i>
+                添加生字
+            </button>
+            <div id="addWordPanel" style="display:none;" role="dialog" aria-labelledby="addWordTitle">
+                <h3 id="addWordTitle" class="sr-only">添加新生字</h3>
+                <input type="text" id="newWord" placeholder="输入对应的单词" aria-label="输入词组" required>
+                <input type="text" id="newPinyin" placeholder="输入拼音" aria-label="输入拼音" required>
+                <div class="button-group">
+                    <button onclick="addNewCharacter()" aria-label="确认添加生字">
+                        <i class="ri-check-line" aria-hidden="true"></i>
+                        确认添加
+                    </button>
+                    <button onclick="toggleAddWordPanel()" class="secondary" aria-label="取消添加">
+                        <i class="ri-close-line" aria-hidden="true"></i>
+                        取消
+                    </button>
+                </div>
+            </div>
+            <select id="filterStatus" onchange="debouncedRender()" aria-label="筛选学习状态">
+                <option value="all">显示所有</option>
+                <option value="unknown">只显示不会的</option>
+                <option value="maybe">只显示可能会的</option>
+                <option value="unknown-maybe">只显示不会和可能会的</option>
+                <option value="known">只显示已掌握的</option>
+            </select>
+            <button id="pinyinModeBtn" onclick="togglePinyinMode()" class="tooltip" data-tooltip="切换拼音模式 (Ctrl+F)" aria-label="拼音模式">
+                <i class="ri-translate-2" aria-hidden="true"></i>
+                拼音模式
+            </button>
+            <button onclick="exportProgress()" class="tooltip" data-tooltip="导出学习进度 (Ctrl+S)" aria-label="导出进度">
+                <i class="ri-download-line" aria-hidden="true"></i>
+                导出进度
+            </button>
+            <button onclick="importProgress()" class="tooltip" data-tooltip="导入学习进度 (Ctrl+O)" aria-label="导入进度">
+                <i class="ri-upload-line" aria-hidden="true"></i>
+                导入进度
+            </button>
+            <button onclick="resetCharacters()" class="reset-btn tooltip" data-tooltip="重置所有学习状态" aria-label="重置生字表">
+                <i class="ri-refresh-line" aria-hidden="true"></i>
+                重置生字表
+            </button>
+            <button id="printBtn" onclick="printPage()" class="tooltip" data-tooltip="打印练习纸 (Ctrl+P)" aria-label="打印">
+                <i class="ri-printer-line" aria-hidden="true"></i>
+                打印
+            </button>
+        </div>
+
+        <div class="character-list" id="characterList" role="main" aria-label="生字列表">
+            <!-- 生字列表将在这里动态生成 -->
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html> 
