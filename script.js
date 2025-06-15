@@ -889,18 +889,23 @@ function generateLessonHTML(lesson, lessonIdx, filteredWords, isPrint) {
           const key = `${lessonIdx}_${origIdx}`;
           const status = wordStatus[key] || 'unknown';
           if (window.pinyinMode) {
+            const highlightedPinyin = highlightSearchResults(item.pinyin, currentSearchQuery);
             return `
               <div class="character-card ${statusClass[status]}">
                 <span class='status-label ${statusClass[status]}'></span>
-                <button class="word-btn ${statusClass[status]}" data-key="${key}">${item.pinyin}</button>
+                <button class="word-btn ${statusClass[status]}" data-key="${key}">${highlightedPinyin}</button>
               </div>
             `;
           }
+          
+          const highlightedWord = highlightSearchResults(item.word, currentSearchQuery);
+          const highlightedPinyin = highlightSearchResults(item.pinyin, currentSearchQuery);
+          
           return `
             <div class="character-card ${statusClass[status]}">
               <span class='status-label ${statusClass[status]}'></span>
-              <div class="pinyin">${item.pinyin}</div>
-              <button class="word-btn ${statusClass[status]}" data-key="${key}">${item.word}</button>
+              <div class="pinyin">${highlightedPinyin}</div>
+              <button class="word-btn ${statusClass[status]}" data-key="${key}">${highlightedWord}</button>
             </div>
           `;
         }).join('')}
@@ -919,22 +924,50 @@ function renderLessons() {
   
   // 使用DocumentFragment优化性能
   const fragment = document.createDocumentFragment();
+  let totalFilteredWords = 0;
   
   allLessons.forEach((lesson, lessonIdx) => {
-    // 过滤本课单词，拼音模式也要按筛选条件过滤
+    // 过滤本课单词，包括状态过滤和搜索过滤
     const filteredWords = lesson.words.filter((item, wordIdx) => {
       const key = `${lessonIdx}_${wordIdx}`;
       const status = wordStatus[key] || 'unknown';
-      if (filter === 'unknown-maybe') return status === 'unknown' || status === 'maybe';
-      return filter === 'all' || status === filter;
+      
+      // 状态过滤
+      let statusMatch = false;
+      if (filter === 'unknown-maybe') {
+        statusMatch = status === 'unknown' || status === 'maybe';
+      } else {
+        statusMatch = filter === 'all' || status === filter;
+      }
+      
+      // 搜索过滤
+      const searchMatch = matchesSearch(item.word, item.pinyin, currentSearchQuery);
+      
+      return statusMatch && searchMatch;
     });
     
     if (filteredWords.length === 0) return;
+    
+    totalFilteredWords += filteredWords.length;
     
     const lessonElement = document.createElement('div');
     lessonElement.innerHTML = generateLessonHTML(lesson, lessonIdx, filteredWords, isPrint);
     fragment.appendChild(lessonElement.firstElementChild);
   });
+  
+  // 如果搜索无结果，显示提示
+  if (currentSearchQuery && totalFilteredWords === 0) {
+    const noResults = document.createElement('div');
+    noResults.className = 'search-no-results';
+    noResults.innerHTML = `
+      <div><i class="ri-search-line"></i></div>
+      <div>没有找到包含 "${currentSearchQuery}" 的生字</div>
+      <div style="font-size: 0.9rem; margin-top: 0.5rem; color: var(--text-secondary);">
+        请尝试其他关键词或检查拼写
+      </div>
+    `;
+    fragment.appendChild(noResults);
+  }
   
   container.innerHTML = '';
   container.appendChild(fragment);
@@ -943,6 +976,11 @@ function renderLessons() {
   if (!isPrint) {
     container.removeEventListener('click', handleCardClick);
     container.addEventListener('click', handleCardClick);
+    
+    // 添加发音按钮
+    setTimeout(() => {
+      addSpeechButtons();
+    }, 100);
   }
   
   // 更新学习进度
@@ -953,6 +991,158 @@ function renderLessons() {
 
 // 防抖渲染
 const debouncedRender = debounce(renderLessons, 300);
+
+// 搜索相关变量
+let currentSearchQuery = '';
+
+// 搜索功能
+function initializeSearch() {
+  const searchInput = document.getElementById('searchInput');
+  const clearSearchBtn = document.getElementById('clearSearchBtn');
+  
+  if (searchInput) {
+    // 防抖搜索
+    const debouncedSearch = debounce(performSearch, 300);
+    
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.trim();
+      currentSearchQuery = query;
+      
+      // 显示/隐藏清除按钮
+      clearSearchBtn.style.display = query ? 'flex' : 'none';
+      
+      // 执行搜索
+      debouncedSearch(query);
+    });
+    
+    // 回车键搜索
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        performSearch(e.target.value.trim());
+      }
+    });
+  }
+}
+
+function performSearch(query) {
+  currentSearchQuery = query;
+  renderLessons();
+  
+  if (query) {
+    showMessage(`搜索到相关内容`, 'info', 2000);
+  }
+}
+
+function clearSearch() {
+  const searchInput = document.getElementById('searchInput');
+  const clearSearchBtn = document.getElementById('clearSearchBtn');
+  
+  searchInput.value = '';
+  currentSearchQuery = '';
+  clearSearchBtn.style.display = 'none';
+  
+  renderLessons();
+  searchInput.focus();
+}
+
+// 高亮搜索结果
+function highlightSearchResults(text, query) {
+  if (!query) return text;
+  
+  const regex = new RegExp(`(${escapeRegExp(query)})`, 'gi');
+  return text.replace(regex, '<span class="search-highlight">$1</span>');
+}
+
+// 转义正则表达式特殊字符
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// 检查生字是否匹配搜索条件
+function matchesSearch(word, pinyin, query) {
+  if (!query) return true;
+  
+  const lowerQuery = query.toLowerCase();
+  return word.toLowerCase().includes(lowerQuery) || 
+         pinyin.toLowerCase().includes(lowerQuery);
+}
+
+// 发音功能
+function initializeSpeech() {
+  // 检查浏览器是否支持语音合成
+  if (!('speechSynthesis' in window)) {
+    console.warn('浏览器不支持语音合成功能');
+    return false;
+  }
+  return true;
+}
+
+function speakText(text, lang = 'zh-CN') {
+  if (!initializeSpeech()) {
+    showMessage('您的浏览器不支持发音功能', 'error');
+    return;
+  }
+  
+  // 停止当前播放的语音
+  speechSynthesis.cancel();
+  
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = lang;
+  utterance.rate = 0.8; // 语速稍慢
+  utterance.pitch = 1; // 音调
+  utterance.volume = 0.8; // 音量
+  
+  // 设置中文语音
+  const voices = speechSynthesis.getVoices();
+  const chineseVoice = voices.find(voice => 
+    voice.lang.includes('zh') || voice.lang.includes('CN')
+  );
+  if (chineseVoice) {
+    utterance.voice = chineseVoice;
+  }
+  
+  utterance.onerror = () => {
+    showMessage('发音失败，请稍后重试', 'error', 2000);
+  };
+  
+  speechSynthesis.speak(utterance);
+}
+
+function addSpeechButtons() {
+  // 为每个生字卡片添加发音按钮
+  const characterCards = document.querySelectorAll('.character-card');
+  
+  characterCards.forEach(card => {
+    const wordBtn = card.querySelector('.word-btn');
+    const pinyinDiv = card.querySelector('.pinyin');
+    
+    if (!card.querySelector('.speech-btn')) {
+      const speechBtn = document.createElement('button');
+      speechBtn.className = 'speech-btn';
+      speechBtn.innerHTML = '<i class="ri-volume-up-line"></i>';
+      speechBtn.title = '点击发音';
+      speechBtn.setAttribute('aria-label', '发音');
+      
+      // 获取生字文本
+      const wordText = wordBtn.textContent.trim();
+      
+      speechBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        speakText(wordText);
+        
+        // 视觉反馈
+        speechBtn.style.color = 'var(--primary-color)';
+        setTimeout(() => {
+          speechBtn.style.color = '';
+        }, 1000);
+      };
+      
+      card.appendChild(speechBtn);
+    }
+  });
+}
 
 // 全局标志：是否正在进行自定义打印
 let isCustomPrinting = false;
@@ -984,7 +1174,11 @@ document.addEventListener('keydown', function(e) {
         break;
       case 'f':
         e.preventDefault();
-        document.getElementById('filterStatus').focus();
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        }
         break;
       case 'a':
         e.preventDefault();
@@ -1095,6 +1289,7 @@ function showHelp() {
 document.addEventListener('DOMContentLoaded', function() {
   renderLessons();
   renderStudyProgress();
+  initializeSearch();
   
   // 添加快捷键提示
   const helpText = document.createElement('div');
@@ -1281,8 +1476,10 @@ function showCustomPrintDialog() {
     background: white;
     padding: 2rem;
     border-radius: 8px;
-    max-width: 450px;
+    max-width: 500px;
     width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
     box-shadow: 0 10px 25px rgba(0,0,0,0.2);
   `;
   
@@ -1590,4 +1787,131 @@ function generatePrintContent(lessonGroups, totalCount) {
       }, 5000);
     }, 200);
   });
+}
+
+// 学习分析功能
+function showAnalysisReport() {
+  const stats = getStudyStats();
+  const masteryRate = Math.round((stats.known / stats.total) * 100);
+  
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+  `;
+  
+  const dialog = document.createElement('div');
+  dialog.style.cssText = `
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  `;
+  
+  dialog.innerHTML = `
+    <h3 style="margin-bottom: 1.5rem; text-align: center; color: var(--text-primary);">
+      <i class="ri-bar-chart-line" style="margin-right: 0.5rem;"></i>
+      学习分析报告
+    </h3>
+    
+    <div style="background: var(--bg-primary); padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1rem;">
+        <div style="text-align: center;">
+          <div style="font-size: 2rem; font-weight: bold; color: var(--success-color);">${stats.known}</div>
+          <div style="color: var(--text-secondary);">已掌握</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 2rem; font-weight: bold; color: var(--primary-color);">${masteryRate}%</div>
+          <div style="color: var(--text-secondary);">掌握率</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 2rem; font-weight: bold; color: var(--warning-color);">${stats.maybe}</div>
+          <div style="color: var(--text-secondary);">模糊</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 2rem; font-weight: bold; color: var(--danger-color);">${stats.unknown}</div>
+          <div style="color: var(--text-secondary);">不会</div>
+        </div>
+      </div>
+    </div>
+    
+    <div style="margin-bottom: 1.5rem;">
+      <h4 style="margin-bottom: 1rem; color: var(--text-primary);">💡 学习建议</h4>
+      ${generateQuickRecommendations(stats, masteryRate)}
+    </div>
+    
+    <div style="text-align: center;">
+      <button onclick="this.closest('.modal').remove()" style="
+        padding: 0.75rem 2rem;
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+      ">
+        知道了
+      </button>
+    </div>
+  `;
+  
+  modal.className = 'modal';
+  modal.appendChild(dialog);
+  document.body.appendChild(modal);
+  
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+}
+
+function generateQuickRecommendations(stats, masteryRate) {
+  const recommendations = [];
+  
+  if (masteryRate >= 80) {
+    recommendations.push(`
+      <div style="padding: 1rem; margin-bottom: 0.75rem; border-left: 4px solid var(--success-color); background: var(--bg-primary); border-radius: 0 6px 6px 0;">
+        <div style="font-weight: 600; margin-bottom: 0.5rem;">🎉 表现优秀</div>
+        <div style="color: var(--text-secondary); font-size: 0.9rem;">掌握率达到${masteryRate}%，继续保持！建议复习模糊的生字。</div>
+      </div>
+    `);
+  } else if (masteryRate >= 60) {
+    recommendations.push(`
+      <div style="padding: 1rem; margin-bottom: 0.75rem; border-left: 4px solid var(--primary-color); background: var(--bg-primary); border-radius: 0 6px 6px 0;">
+        <div style="font-weight: 600; margin-bottom: 0.5rem;">📈 稳步提升</div>
+        <div style="color: var(--text-secondary); font-size: 0.9rem;">掌握率${masteryRate}%，还有提升空间。建议每天练习不会的生字。</div>
+      </div>
+    `);
+  } else {
+    recommendations.push(`
+      <div style="padding: 1rem; margin-bottom: 0.75rem; border-left: 4px solid var(--warning-color); background: var(--bg-primary); border-radius: 0 6px 6px 0;">
+        <div style="font-weight: 600; margin-bottom: 0.5rem;">💪 需要加强</div>
+        <div style="color: var(--text-secondary); font-size: 0.9rem;">掌握率${masteryRate}%，建议每天重点练习不会的生字，制定学习计划。</div>
+      </div>
+    `);
+  }
+  
+  if (stats.maybe > stats.total * 0.3) {
+    recommendations.push(`
+      <div style="padding: 1rem; margin-bottom: 0.75rem; border-left: 4px solid var(--warning-color); background: var(--bg-primary); border-radius: 0 6px 6px 0;">
+        <div style="font-weight: 600; margin-bottom: 0.5rem;">🔄 巩固练习</div>
+        <div style="color: var(--text-secondary); font-size: 0.9rem;">有${stats.maybe}个模糊的生字，建议多复习巩固。</div>
+      </div>
+    `);
+  }
+  
+  return recommendations.join('');
 } 
